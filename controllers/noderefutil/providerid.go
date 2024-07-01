@@ -38,6 +38,7 @@ type ProviderID struct {
 	original      string
 	cloudProvider string
 	id            string
+	fullId        string
 }
 
 /*
@@ -54,12 +55,24 @@ func NewProviderID(id string) (*ProviderID, error) {
 		return nil, ErrEmptyProviderID
 	}
 
+	// Provider IDs are case-insensitive.
+	id = strings.ToLower(id)
 	if !providerIDRegex.MatchString(id) {
 		return nil, ErrInvalidProviderID
 	}
 
 	colonIndex := strings.Index(id, ":")
 	cloudProvider := id[0:colonIndex]
+
+	// Provider ID can have extra(minimum 2) slashes after the cloud provider. Remove them to get full id.
+	idStart := colonIndex + 3
+	for {
+		if id[idStart] != '/' {
+			break
+		}
+		idStart++
+	}
+	fullId := id[idStart:]
 
 	lastSlashIndex := strings.LastIndex(id, "/")
 	instance := id[lastSlashIndex+1:]
@@ -68,6 +81,7 @@ func NewProviderID(id string) (*ProviderID, error) {
 		original:      id,
 		cloudProvider: cloudProvider,
 		id:            instance,
+		fullId:        fullId,
 	}
 
 	if !res.Validate() {
@@ -85,6 +99,11 @@ func (p *ProviderID) CloudProvider() string {
 // ID returns the identifier portion of the ProviderID.
 func (p *ProviderID) ID() string {
 	return p.id
+}
+
+// FullID returns the full identifier portion of the ProviderID including optional segments.
+func (p *ProviderID) FullID() string {
+	return p.fullId
 }
 
 // Equals returns true if both the CloudProvider and ID match.

@@ -285,6 +285,9 @@ func (o *objectGraph) getDiscoveryTypes() error {
 			// together with their descendants identified via the owner chain.
 			// NOTE: Cluster and ClusterResourceSet are automatically considered as force move-hierarchy.
 			forceMoveHierarchy := false
+			if crd.Spec.Group == clusterv1.GroupVersion.Group && crd.Spec.Names.Kind == "DatabricksKubernetesCluster" {
+				forceMoveHierarchy = true
+			}
 			if crd.Spec.Group == clusterv1.GroupVersion.Group && crd.Spec.Names.Kind == "Cluster" {
 				forceMoveHierarchy = true
 			}
@@ -341,7 +344,7 @@ func getCRDList(proxy Proxy, crdList *apiextensionsv1.CustomResourceDefinitionLi
 		return err
 	}
 
-	if err := c.List(ctx, crdList, client.HasLabels{clusterctlv1.ClusterctlLabelName}); err != nil {
+	if err := c.List(ctx, crdList, client.HasLabels{"cluster.x-k8s.io/provider"}); err != nil {
 		return errors.Wrap(err, "failed to get the list of CRDs required for the move discovery phase")
 	}
 	return nil

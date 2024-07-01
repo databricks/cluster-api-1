@@ -129,18 +129,20 @@ func (h *Helper) Patch(ctx context.Context, obj client.Object, opts ...Option) e
 	}
 
 	// Issue patches and return errors in an aggregate.
-	return kerrors.NewAggregate([]error{
+	patchErrs := []error{
 		// Patch the conditions first.
 		//
 		// Given that we pass in metadata.resourceVersion to perform a 3-way-merge conflict resolution,
 		// patching conditions first avoids an extra loop if spec or status patch succeeds first
 		// given that causes the resourceVersion to mutate.
 		h.patchStatusConditions(ctx, obj, options.ForceOverwriteConditions, options.OwnedConditions),
-
 		// Then proceed to patch the rest of the object.
-		h.patch(ctx, obj),
 		h.patchStatus(ctx, obj),
-	})
+	}
+	if !options.StatusOnly {
+		patchErrs = append(patchErrs, h.patch(ctx, obj))
+	}
+	return kerrors.NewAggregate(patchErrs)
 }
 
 // patch issues a patch for metadata and spec.

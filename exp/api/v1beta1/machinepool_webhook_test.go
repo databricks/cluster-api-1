@@ -164,6 +164,43 @@ func TestMachinePoolNamespaceValidation(t *testing.T) {
 	}
 }
 
+func TestMachinePoolDeletionAllowedValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		in        *MachinePool
+		expectErr bool
+	}{
+		{
+			name:      "should return error when deletion prevention annotation is set",
+			expectErr: true,
+			in: &MachinePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						clusterv1.PreventAccidentalDeletionAnnotation: "true",
+					},
+				},
+			},
+		},
+		{
+			name:      "should allow deletion",
+			expectErr: false,
+			in:        &MachinePool{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			err := tt.in.ValidateDelete()
+			if tt.expectErr {
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+		})
+	}
+}
+
 func TestMachinePoolClusterNameImmutable(t *testing.T) {
 	tests := []struct {
 		name           string

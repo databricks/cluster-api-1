@@ -26,29 +26,40 @@ const aws = "aws"
 
 func TestNewProviderID(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		expectedID string
+		name           string
+		input          string
+		expectedID     string
+		expectedFullID string
 	}{
 		{
-			name:       "2 slashes after colon, one segment",
-			input:      "aws://instance-id",
-			expectedID: "instance-id",
+			name:           "2 slashes after colon, one segment",
+			input:          "aws://instance-id",
+			expectedID:     "instance-id",
+			expectedFullID: "instance-id",
 		},
 		{
-			name:       "more than 2 slashes after colon, one segment",
-			input:      "aws:////instance-id",
-			expectedID: "instance-id",
+			name:           "more than 2 slashes after colon, one segment",
+			input:          "aws:////instance-id",
+			expectedID:     "instance-id",
+			expectedFullID: "instance-id",
 		},
 		{
-			name:       "multiple filled-in segments (aws format)",
-			input:      "aws:///zone/instance-id",
-			expectedID: "instance-id",
+			name:           "multiple filled-in segments (aws format)",
+			input:          "aws:///zone/instance-id",
+			expectedID:     "instance-id",
+			expectedFullID: "zone/instance-id",
 		},
 		{
-			name:       "multiple filled-in segments",
-			input:      "aws://bar/baz/instance-id",
-			expectedID: "instance-id",
+			name:           "multiple filled-in segments",
+			input:          "aws://bar/baz/instance-id",
+			expectedID:     "instance-id",
+			expectedFullID: "bar/baz/instance-id",
+		},
+		{
+			name:           "case insensitive",
+			input:          "aws://bar/Baz.Foo/Instance-Id102",
+			expectedID:     "instance-id102",
+			expectedFullID: "bar/baz.foo/instance-id102",
 		},
 	}
 
@@ -60,6 +71,7 @@ func TestNewProviderID(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(id.CloudProvider()).To(Equal(aws))
 			g.Expect(id.ID()).To(Equal(tc.expectedID))
+			g.Expect(id.FullID()).To(Equal(tc.expectedFullID))
 		})
 	}
 }

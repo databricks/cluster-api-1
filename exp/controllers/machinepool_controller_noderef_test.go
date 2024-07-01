@@ -53,6 +53,14 @@ func TestMachinePoolGetNodeReference(t *testing.T) {
 		},
 		&corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-3",
+			},
+			Spec: corev1.NodeSpec{
+				ProviderID: "aws:///us-west-2/id-node-3",
+			},
+		},
+		&corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: "gce-node-2",
 			},
 			Spec: corev1.NodeSpec{
@@ -65,6 +73,30 @@ func TestMachinePoolGetNodeReference(t *testing.T) {
 			},
 			Spec: corev1.NodeSpec{
 				ProviderID: "azure://westus2/id-node-4",
+			},
+		},
+		&corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "azure-nodepool1-0",
+			},
+			Spec: corev1.NodeSpec{
+				ProviderID: "azure://westus2/id-nodepool1/0",
+			},
+		},
+		&corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "azure-nodepool2-0",
+			},
+			Spec: corev1.NodeSpec{
+				ProviderID: "azure://westus2/id-nodepool2/0",
+			},
+		},
+		&corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "azure-nodepool3-0",
+			},
+			Spec: corev1.NodeSpec{
+				ProviderID: "azure://westus2/Virtual.Machine/id-nodepool3/0",
 			},
 		},
 	}
@@ -92,6 +124,15 @@ func TestMachinePoolGetNodeReference(t *testing.T) {
 			expected: &getNodeReferencesResult{
 				references: []corev1.ObjectReference{
 					{Name: "node-2"},
+				},
+			},
+		},
+		{
+			name:           "valid provider id with extra /, valid aws node",
+			providerIDList: []string{"aws://us-west-2/id-node-3"},
+			expected: &getNodeReferencesResult{
+				references: []corev1.ObjectReference{
+					{Name: "node-3"},
 				},
 			},
 		},
@@ -128,6 +169,41 @@ func TestMachinePoolGetNodeReference(t *testing.T) {
 			providerIDList: []string{"aws:///id-node-100"},
 			expected:       nil,
 			err:            errNoAvailableNodes,
+		},
+		{
+			name:           "empty provider ids list",
+			providerIDList: []string{},
+			expected: &getNodeReferencesResult{
+				references: []corev1.ObjectReference{},
+			},
+		},
+		{
+			name:           "valid provider id with non-unique instance id, valid azure node",
+			providerIDList: []string{"azure://westus2/id-nodepool1/0"},
+			expected: &getNodeReferencesResult{
+				references: []corev1.ObjectReference{
+					{Name: "azure-nodepool1-0"},
+				},
+			},
+		},
+		{
+			name:           "valid provider ids with same instance ids, valid azure nodes",
+			providerIDList: []string{"azure://westus2/id-nodepool1/0", "azure://westus2/id-nodepool2/0"},
+			expected: &getNodeReferencesResult{
+				references: []corev1.ObjectReference{
+					{Name: "azure-nodepool1-0"},
+					{Name: "azure-nodepool2-0"},
+				},
+			},
+		},
+		{
+			name:           "valid provider id with different case, valid azure node",
+			providerIDList: []string{"azure://westus2/virtual.machine/id-nodepool3/0"},
+			expected: &getNodeReferencesResult{
+				references: []corev1.ObjectReference{
+					{Name: "azure-nodepool3-0"},
+				},
+			},
 		},
 	}
 

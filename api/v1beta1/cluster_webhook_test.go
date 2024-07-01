@@ -166,6 +166,43 @@ func TestClusterValidation(t *testing.T) {
 	}
 }
 
+func TestClusterDeletionAllowedValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		in        *Cluster
+		expectErr bool
+	}{
+		{
+			name:      "should return error when deletion prevention annotation is set",
+			expectErr: true,
+			in: &Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						PreventAccidentalDeletionAnnotation: "true",
+					},
+				},
+			},
+		},
+		{
+			name:      "should allow deletion",
+			expectErr: false,
+			in:        &Cluster{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			err := tt.in.ValidateDelete()
+			if tt.expectErr {
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+		})
+	}
+}
+
 func TestClusterTopologyValidation(t *testing.T) {
 	// NOTE: ClusterTopology feature flag is disabled by default, thus preventing to set Cluster.Topologies.
 	// Enabling the feature flag temporarily for this test.

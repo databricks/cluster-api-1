@@ -81,7 +81,14 @@ func (m *MachinePool) ValidateUpdate(old runtime.Object) error {
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
 func (m *MachinePool) ValidateDelete() error {
-	return m.validate(nil)
+	var allErrs field.ErrorList
+	if deletionAllowedErrs := m.validateDeleteAllowed(); len(deletionAllowedErrs) > 0 {
+		allErrs = append(allErrs, deletionAllowedErrs...)
+	}
+	if len(allErrs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(GroupVersion.WithKind("MachinePool").GroupKind(), m.Name, allErrs)
 }
 
 func (m *MachinePool) validate(old *MachinePool) error {
@@ -129,4 +136,18 @@ func (m *MachinePool) validate(old *MachinePool) error {
 		return nil
 	}
 	return apierrors.NewInvalid(GroupVersion.WithKind("MachinePool").GroupKind(), m.Name, allErrs)
+}
+
+func (m *MachinePool) validateDeleteAllowed() field.ErrorList {
+	var allErrs field.ErrorList
+
+	if _, ok := m.GetAnnotations()[clusterv1.PreventAccidentalDeletionAnnotation]; ok {
+		allErrs = append(allErrs,
+			field.Forbidden(
+				field.NewPath("metadata", "annotations"),
+				fmt.Sprintf("%s annotation must be removed before proceeding with deletion", clusterv1.PreventAccidentalDeletionAnnotation),
+			),
+		)
+	}
+	return allErrs
 }

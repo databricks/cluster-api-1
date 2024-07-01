@@ -723,6 +723,110 @@ func TestPatchHelper(t *testing.T) {
 		})
 	})
 
+	t.Run("Should skip over spec and metadata when using the StatusOnly option", func(t *testing.T) {
+		obj := &clusterv1.MachineSet{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "test-ms",
+				Namespace:    ns.Name,
+			},
+			Spec: clusterv1.MachineSetSpec{
+				ClusterName: "test1",
+				Template: clusterv1.MachineTemplateSpec{
+					Spec: clusterv1.MachineSpec{
+						ClusterName: "test1",
+					},
+				},
+			},
+		}
+		t.Run("when updating spec", func(t *testing.T) {
+			g := NewWithT(t)
+
+			obj := obj.DeepCopy()
+
+			t.Log("Creating the MachineSet object")
+			g.Expect(env.Create(ctx, obj)).To(Succeed())
+			defer func() {
+				g.Expect(env.Delete(ctx, obj)).To(Succeed())
+			}()
+			key := client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}
+
+			t.Log("Checking that the object has been created")
+			g.Eventually(func() error {
+				obj := obj.DeepCopy()
+				return env.Get(ctx, key, obj)
+			}).Should(Succeed())
+
+			t.Log("Creating a new patch helper")
+			patcher, err := NewHelper(obj, env)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			t.Log("Updating the object spec")
+			obj.Spec.Replicas = pointer.Int32Ptr(10)
+
+			t.Log("Patching the object")
+			g.Expect(patcher.Patch(ctx, obj, WithStatusOnly{})).To(Succeed())
+
+			t.Log("Validating the object has been updated")
+			g.Eventually(func() bool {
+				objAfter := obj.DeepCopy()
+				if err := env.Get(ctx, key, objAfter); err != nil {
+					return false
+				}
+
+				return reflect.DeepEqual(obj.Spec, objAfter.Spec)
+			}, timeout).Should(BeFalse())
+		})
+
+		t.Run("when updating spec, status, and metadata", func(t *testing.T) {
+			g := NewWithT(t)
+
+			obj := obj.DeepCopy()
+
+			t.Log("Creating the MachineSet object")
+			g.Expect(env.Create(ctx, obj)).To(Succeed())
+			defer func() {
+				g.Expect(env.Delete(ctx, obj)).To(Succeed())
+			}()
+			key := client.ObjectKey{Name: obj.Name, Namespace: obj.Namespace}
+
+			t.Log("Checking that the object has been created")
+			g.Eventually(func() error {
+				obj := obj.DeepCopy()
+				return env.Get(ctx, key, obj)
+			}).Should(Succeed())
+
+			t.Log("Creating a new patch helper")
+			patcher, err := NewHelper(obj, env)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			t.Log("Updating the object spec")
+			obj.Spec.Replicas = pointer.Int32Ptr(10)
+
+			t.Log("Updating the object status")
+			obj.Status.AvailableReplicas = 6
+			obj.Status.ReadyReplicas = 6
+
+			t.Log("Updating the object metadata")
+			obj.ObjectMeta.Annotations = map[string]string{
+				"test1": "annotation",
+			}
+
+			t.Log("Patching the object")
+			g.Expect(patcher.Patch(ctx, obj, WithStatusOnly{})).To(Succeed())
+
+			t.Log("Validating the object has been updated")
+			g.Eventually(func() bool {
+				objAfter := obj.DeepCopy()
+				if err := env.Get(ctx, key, objAfter); err != nil {
+					return false
+				}
+
+				return !reflect.DeepEqual(obj.Spec, objAfter.Spec) &&
+					reflect.DeepEqual(obj.Status, objAfter.Status)
+			}, timeout).Should(BeTrue())
+		})
+	})
+
 	t.Run("Should update Status.ObservedGeneration when using WithStatusObservedGeneration option", func(t *testing.T) {
 		obj := &clusterv1.MachineSet{
 			ObjectMeta: metav1.ObjectMeta{

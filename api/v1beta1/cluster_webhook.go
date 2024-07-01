@@ -78,7 +78,14 @@ func (c *Cluster) ValidateUpdate(old runtime.Object) error {
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
 func (c *Cluster) ValidateDelete() error {
-	return nil
+	var allErrs field.ErrorList
+	if deletionAllowedErrs := c.validateDeleteAllowed(); len(deletionAllowedErrs) > 0 {
+		allErrs = append(allErrs, deletionAllowedErrs...)
+	}
+	if len(allErrs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(GroupVersion.WithKind("Cluster").GroupKind(), c.Name, allErrs)
 }
 
 func (c *Cluster) validate(old *Cluster) error {
@@ -116,6 +123,20 @@ func (c *Cluster) validate(old *Cluster) error {
 		return nil
 	}
 	return apierrors.NewInvalid(GroupVersion.WithKind("Cluster").GroupKind(), c.Name, allErrs)
+}
+
+func (c *Cluster) validateDeleteAllowed() field.ErrorList {
+	var allErrs field.ErrorList
+
+	if _, ok := c.GetAnnotations()[PreventAccidentalDeletionAnnotation]; ok {
+		allErrs = append(allErrs,
+			field.Forbidden(
+				field.NewPath("metadata", "annotations"),
+				fmt.Sprintf("%s annotation must be removed before proceeding with deletion", PreventAccidentalDeletionAnnotation),
+			),
+		)
+	}
+	return allErrs
 }
 
 func (c *Cluster) validateTopology(old *Cluster) field.ErrorList {

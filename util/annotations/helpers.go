@@ -42,6 +42,11 @@ func HasPausedAnnotation(o metav1.Object) bool {
 	return hasAnnotation(o, clusterv1.PausedAnnotation)
 }
 
+// HasDeletionPreventionAnnotation returns true if the object has the `prevent-accidental-deletion` annotation.
+func HasDeletionPreventionAnnotation(o metav1.Object) bool {
+	return hasAnnotation(o, clusterv1.PreventAccidentalDeletionAnnotation)
+}
+
 // HasSkipRemediationAnnotation returns true if the object has the `skip-remediation` annotation.
 func HasSkipRemediationAnnotation(o metav1.Object) bool {
 	return hasAnnotation(o, clusterv1.MachineSkipRemediationAnnotation)

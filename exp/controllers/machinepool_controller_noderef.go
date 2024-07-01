@@ -67,7 +67,7 @@ func (r *MachinePoolReconciler) reconcileNodeRefs(ctx context.Context, cluster *
 	log = log.WithValues("cluster", cluster.Name)
 
 	// Check that the MachinePool has valid ProviderIDList.
-	if len(mp.Spec.ProviderIDList) == 0 {
+	if len(mp.Spec.ProviderIDList) == 0 && *mp.Spec.Replicas > 0 {
 		log.V(2).Info("MachinePool doesn't have any ProviderIDs yet")
 		return ctrl.Result{}, nil
 	}
@@ -92,6 +92,11 @@ func (r *MachinePoolReconciler) reconcileNodeRefs(ctx context.Context, cluster *
 		return ctrl.Result{}, errors.Wrapf(err, "failed to get node references")
 	}
 
+	// If providerIDs of all nodes are not yet available, requeue MachinePool.
+	if len(mp.Spec.ProviderIDList) < len(nodeRefsResult.references) {
+		log.Info("Infrastructure provider has not yet updated provider IDs for all nodes")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
 	mp.Status.ReadyReplicas = int32(nodeRefsResult.ready)
 	mp.Status.AvailableReplicas = int32(nodeRefsResult.available)
 	mp.Status.UnavailableReplicas = mp.Status.Replicas - mp.Status.AvailableReplicas
@@ -155,7 +160,7 @@ func (r *MachinePoolReconciler) deleteRetiredNodes(ctx context.Context, c client
 			continue
 		}
 
-		nodeRefsMap[nodeProviderID.ID()] = node
+		nodeRefsMap[nodeProviderID.FullID()] = node
 	}
 	for _, providerID := range providerIDList {
 		pid, err := noderefutil.NewProviderID(providerID)
@@ -163,12 +168,13 @@ func (r *MachinePoolReconciler) deleteRetiredNodes(ctx context.Context, c client
 			log.V(2).Info("Failed to parse ProviderID, skipping", "err", err, "providerID", providerID)
 			continue
 		}
-		delete(nodeRefsMap, pid.ID())
+		delete(nodeRefsMap, pid.FullID())
 	}
 	for _, node := range nodeRefsMap {
-		if err := c.Delete(ctx, node); err != nil {
-			return errors.Wrapf(err, "failed to delete Node")
-		}
+		log.Info("Node selected for deletion, but will be ignored as nodes should not be deleted by CAPI.", "node", node.Name)
+		//if err := c.Delete(ctx, node); err != nil {
+		//	return errors.Wrapf(err, "failed to delete Node")
+		//}
 	}
 	return nil
 }
@@ -187,11 +193,11 @@ func (r *MachinePoolReconciler) getNodeReferences(ctx context.Context, c client.
 		for _, node := range nodeList.Items {
 			nodeProviderID, err := noderefutil.NewProviderID(node.Spec.ProviderID)
 			if err != nil {
-				log.V(2).Info("Failed to parse ProviderID, skipping", "err", err, "providerID", node.Spec.ProviderID)
+				log.Info("Failed to parse ProviderID, skipping", "err", err, "providerID", node.Spec.ProviderID)
 				continue
 			}
 
-			nodeRefsMap[nodeProviderID.ID()] = node
+			nodeRefsMap[nodeProviderID.FullID()] = node
 		}
 
 		if nodeList.Continue == "" {
@@ -203,10 +209,10 @@ func (r *MachinePoolReconciler) getNodeReferences(ctx context.Context, c client.
 	for _, providerID := range providerIDList {
 		pid, err := noderefutil.NewProviderID(providerID)
 		if err != nil {
-			log.V(2).Info("Failed to parse ProviderID, skipping", "err", err, "providerID", providerID)
+			log.Info("Failed to parse ProviderID, skipping", "err", err, "providerID", providerID)
 			continue
 		}
-		if node, ok := nodeRefsMap[pid.ID()]; ok {
+		if node, ok := nodeRefsMap[pid.FullID()]; ok {
 			available++
 			if nodeIsReady(&node) {
 				ready++
@@ -220,7 +226,7 @@ func (r *MachinePoolReconciler) getNodeReferences(ctx context.Context, c client.
 		}
 	}
 
-	if len(nodeRefs) == 0 {
+	if len(nodeRefs) == 0 && len(providerIDList) > 0 {
 		return getNodeReferencesResult{}, errNoAvailableNodes
 	}
 	return getNodeReferencesResult{nodeRefs, available, ready}, nil

@@ -153,12 +153,16 @@ func (r *MachinePoolReconciler) reconcileExternal(ctx context.Context, cluster *
 	if failureReason != "" {
 		machineStatusFailure := capierrors.MachinePoolStatusFailure(failureReason)
 		m.Status.FailureReason = &machineStatusFailure
+	} else {
+		m.Status.FailureReason = nil
 	}
 	if failureMessage != "" {
 		m.Status.FailureMessage = pointer.StringPtr(
 			fmt.Sprintf("Failure detected from referenced resource %v with name %q: %s",
 				obj.GroupVersionKind(), obj.GetName(), failureMessage),
 		)
+	} else {
+		m.Status.FailureMessage = nil
 	}
 
 	return external.ReconcileOutput{Result: obj}, nil
@@ -275,8 +279,10 @@ func (r *MachinePoolReconciler) reconcileInfrastructure(ctx context.Context, clu
 	var providerIDList []string
 	// Get Spec.ProviderIDList from the infrastructure provider.
 	if err := util.UnstructuredUnmarshalField(infraConfig, &providerIDList, "spec", "providerIDList"); err != nil {
-		return ctrl.Result{}, errors.Wrapf(err, "failed to retrieve data from infrastructure provider for MachinePool %q in namespace %q", mp.Name, mp.Namespace)
-	} else if len(providerIDList) == 0 {
+		if *mp.Spec.Replicas > 0 {
+			return ctrl.Result{}, errors.Wrapf(err, "failed to retrieve data from infrastructure provider for MachinePool %q in namespace %q", mp.Name, mp.Namespace)
+		}
+	} else if len(providerIDList) == 0 && *mp.Spec.Replicas > 0 {
 		log.Info("Retrieved empty Spec.ProviderIDList from infrastructure provider")
 		return ctrl.Result{RequeueAfter: externalReadyWait}, nil
 	}
@@ -287,7 +293,7 @@ func (r *MachinePoolReconciler) reconcileInfrastructure(ctx context.Context, clu
 		if err != util.ErrUnstructuredFieldNotFound {
 			return ctrl.Result{}, errors.Wrapf(err, "failed to retrieve replicas from infrastructure provider for MachinePool %q in namespace %q", mp.Name, mp.Namespace)
 		}
-	} else if mp.Status.Replicas == 0 {
+	} else if mp.Status.Replicas == 0 && *mp.Spec.Replicas > 0 {
 		log.Info("Retrieved unset Status.Replicas from infrastructure provider")
 		return ctrl.Result{RequeueAfter: externalReadyWait}, nil
 	}

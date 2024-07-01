@@ -60,6 +60,13 @@ const (
 	// on the reconciled object.
 	PausedAnnotation = "cluster.x-k8s.io/paused"
 
+	// PreventAccidentalClusterDeletionAnnotation is an annotation that can be applied to any Cluster API
+	// object to prevent a controller from deleting a resource.
+	//
+	// Controllers working with Cluster API objects must check the existence of this annotation
+	// on the reconciled object.
+	PreventAccidentalDeletionAnnotation = "prevent-accidental-deletion"
+
 	// DisableMachineCreate is an annotation that can be used to signal a MachineSet to stop creating new machines.
 	// It is utilized in the OnDelete MachineDeploymentStrategy to allow the MachineDeployment controller to scale down
 	// older MachineSets when Machines are deleted and add the new replicas to the latest MachineSet.
